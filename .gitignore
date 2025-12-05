@@ -1,6 +1,8 @@
 # Binaries
 orion**
 orion.exe
+dist/
+build.sh
 
 # Raft Data
 data-*/
