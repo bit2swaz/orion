@@ -1,13 +1,20 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/bit2swaz/orion/internal/cluster"
+	"github.com/bit2swaz/orion/internal/manager"
+	"github.com/bit2swaz/orion/internal/scheduler"
 	"github.com/bit2swaz/orion/internal/store"
+	"github.com/bit2swaz/orion/internal/task"
+	"github.com/bit2swaz/orion/internal/worker"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
 
@@ -50,6 +57,16 @@ var rootCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
+		w, err := worker.New(nodeID)
+		if err != nil {
+			fmt.Printf("Failed to create worker: %v\n", err)
+			os.Exit(1)
+		}
+
+		sched := scheduler.New()
+		mgr := manager.New(s, sched, w, c, nodeID)
+		go mgr.Run(context.Background())
+
 		if joinAddr != "" {
 			_, err := c.Join([]string{joinAddr})
 			if err != nil {
@@ -87,6 +104,44 @@ var rootCmd = &cobra.Command{
 				"tasks":    tasks,
 			}
 			json.NewEncoder(w).Encode(resp)
+		})
+
+		http.HandleFunc("/tasks", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+
+			var t task.Task
+			if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			t.ID = uuid.New()
+			t.State = task.Pending
+			t.StartTime = time.Now()
+
+			event := task.TaskEvent{
+				ID:        t.ID,
+				State:     task.Pending,
+				Timestamp: time.Now(),
+				Task:      t,
+			}
+
+			data, err := json.Marshal(event)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			if future := s.R.Apply(data, 10*time.Second); future.Error() != nil {
+				http.Error(w, future.Error().Error(), http.StatusInternalServerError)
+				return
+			}
+
+			w.WriteHeader(http.StatusCreated)
+			json.NewEncoder(w).Encode(t)
 		})
 
 		fmt.Printf("Starting API server on port %d\n", apiPort)

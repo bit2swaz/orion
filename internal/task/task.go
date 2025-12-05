@@ -20,6 +20,7 @@ const (
 type Task struct {
 	ID            uuid.UUID
 	Name          string
+	NodeID        string
 	State         State
 	Image         string
 	Command       []string
