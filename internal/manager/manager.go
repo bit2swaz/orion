@@ -18,11 +18,11 @@ type Manager struct {
 	Store     *store.Store
 	Scheduler *scheduler.Scheduler
 	Worker    *worker.Worker
-	Cluster   *cluster.Cluster
+	Cluster   *cluster.Manager
 	LocalID   string
 }
 
-func New(store *store.Store, scheduler *scheduler.Scheduler, worker *worker.Worker, cluster *cluster.Cluster, localID string) *Manager {
+func New(store *store.Store, scheduler *scheduler.Scheduler, worker *worker.Worker, cluster *cluster.Manager, localID string) *Manager {
 	return &Manager{
 		Store:     store,
 		Scheduler: scheduler,
@@ -107,13 +107,19 @@ func (m *Manager) scheduleTasks(tasks []*task.Task) {
 			members := m.Cluster.Members()
 			var nodes []scheduler.Node
 			for _, member := range members {
+				var meta cluster.NodeMeta
+				if err := json.Unmarshal(member.Meta, &meta); err != nil {
+					log.Printf("Failed to unmarshal node meta for %s: %v", member.Name, err)
+					continue
+				}
+
 				nodes = append(nodes, scheduler.Node{
 					ID:          member.Name,
-					MemoryTotal: 4 * 1024 * 1024 * 1024,
-					MemoryUsed:  0,
+					MemoryTotal: meta.MemoryTotal,
+					MemoryUsed:  meta.MemoryUsed,
 					DiskTotal:   100 * 1024 * 1024 * 1024,
 					DiskUsed:    0,
-					Tags:        map[string]string{},
+					Tags:        map[string]string{"role": meta.Role},
 				})
 			}
 

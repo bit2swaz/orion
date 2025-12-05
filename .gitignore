@@ -1,2 +1,10 @@
-orion1
-/data-node1
+# Binaries
+orion**
+orion.exe
+
+# Raft Data
+data-*/
+raft.db
+
+# OS junk
+.DS_Store

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -27,6 +28,16 @@ var (
 	bootstrap  bool
 )
 
+func getLocalIP() string {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		return "127.0.0.1"
+	}
+	defer conn.Close()
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	return localAddr.IP.String()
+}
+
 var rootCmd = &cobra.Command{
 	Use:   "orion",
 	Short: "Orion is a distributed task scheduler",
@@ -36,22 +47,22 @@ var rootCmd = &cobra.Command{
 			nodeID = fmt.Sprintf("%s-%d", hostname, gossipPort)
 		}
 
+		localIP := getLocalIP()
+		fmt.Printf("Node IP detected: %s\n", localIP)
+
 		fmt.Printf("Starting Raft on port %d (Bootstrap: %v)\n", raftPort, bootstrap)
 		dataDir := fmt.Sprintf("data-%s", nodeID)
 		os.MkdirAll(dataDir, 0755)
 
 		s := store.New()
-		raftAddr := fmt.Sprintf("127.0.0.1:%d", raftPort)
+		raftAddr := fmt.Sprintf("%s:%d", localIP, raftPort)
+
 		if err := s.Open(dataDir, nodeID, raftAddr, bootstrap); err != nil {
 			fmt.Printf("Failed to open Raft store: %v\n", err)
 			os.Exit(1)
 		}
 
-		conf := cluster.GetLifeguardConfig()
-		conf.BindPort = gossipPort
-		conf.Name = nodeID
-
-		c, err := cluster.New(conf)
+		c, err := cluster.New(gossipPort, raftPort, nodeID, "manager", s)
 		if err != nil {
 			fmt.Printf("Failed to create cluster: %v\n", err)
 			os.Exit(1)
@@ -99,9 +110,9 @@ var rootCmd = &cobra.Command{
 			}
 			tasks, _ := s.ListTasks()
 			resp := map[string]interface{}{
-				"state":    state,
-				"taskCont": len(tasks),
-				"tasks":    tasks,
+				"state":     state,
+				"taskCount": len(tasks),
+				"tasks":     tasks,
 			}
 			json.NewEncoder(w).Encode(resp)
 		})

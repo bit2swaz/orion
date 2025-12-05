@@ -175,3 +175,35 @@ func (s *Store) Open(dataDir string, localID string, bindAddr string, bootstrap 
 
 	return nil
 }
+
+func (s *Store) Join(nodeID, addr string) error {
+	configFuture := s.R.GetConfiguration()
+	if err := configFuture.Error(); err != nil {
+		return err
+	}
+
+	for _, srv := range configFuture.Configuration().Servers {
+		if srv.ID == raft.ServerID(nodeID) || srv.Address == raft.ServerAddress(addr) {
+			if srv.ID == raft.ServerID(nodeID) && srv.Address == raft.ServerAddress(addr) {
+				return nil
+			}
+			return nil
+		}
+	}
+
+	f := s.R.AddVoter(raft.ServerID(nodeID), raft.ServerAddress(addr), 0, 0)
+	if f.Error() != nil {
+		return f.Error()
+	}
+	fmt.Printf("Added node %s at %s to Raft\n", nodeID, addr)
+	return nil
+}
+
+func (s *Store) Remove(nodeID string) error {
+	f := s.R.RemoveServer(raft.ServerID(nodeID), 0, 0)
+	if f.Error() != nil {
+		return f.Error()
+	}
+	fmt.Printf("Removed node %s from Raft\n", nodeID)
+	return nil
+}
