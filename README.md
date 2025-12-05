@@ -3,7 +3,7 @@
 **orchestration in a single binary. zero bloat.**
 
 ![Status](https://img.shields.io/badge/status-gold_master-green)
-![Go](https://img.shields.io/badge/go-1.22-blue)
+![Go](https://img.shields.io/badge/go-1.24-blue)
 ![Vibe](https://img.shields.io/badge/vibe-immaculate-purple)
 
 i wanted to understand how kubernetes *actually* works. so i built one from scratch.
@@ -42,12 +42,12 @@ graph TD
         style F1 fill:#e1f5fe,stroke:#333
         style F2 fill:#e1f5fe,stroke:#333
         
-        L[node 1: leader] <-->|raft logs (tcp)| F1[node 2: worker]
-        L <-->|raft logs (tcp)| F2[node 3: worker]
+        L["node 1: leader"] <-->|raft logs TCP| F1["node 2: worker"]
+        L <-->|raft logs TCP| F2["node 3: worker"]
         
-        F1 -.->|gossip (udp)| F2
-        F2 -.->|gossip (udp)| L
-        L -.->|gossip (udp)| F1
+        F1 -.->|gossip UDP| F2
+        F2 -.->|gossip UDP| L
+        L -.->|gossip UDP| F1
     end
 
     subgraph "external"
